@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { createClient } from "genlayer-js";
 import { studionet } from "genlayer-js/chains";
 
-const CONTRACT = "0x5AFEBbD492EdA4d83eCdB882EC1E3574b8DA1F12" as `0x${string}`;
+const CONTRACT = "0xE607Fb099B4d9Fc769e4C9aF101Eb0915Fd92EbC" as `0x${string}`;
 const CHAIN_ID = 61999;
 const CHAIN_HEX = "0xf22f";
 const RPC_URL = "https://studio.genlayer.com/api";

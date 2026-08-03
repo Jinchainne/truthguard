@@ -35,8 +35,7 @@ class TruthGuard(gl.Contract):
     def __init__(self):
         self.owner = str(gl.message.sender_address)
         self.next_verification_id = 1
-        self.trusted_sources = DynArray()
-        self.verifications = TreeMap()
+        # trusted_sources and verifications are auto-initialized by class declaration
 
     # ── Helpers ──
 
