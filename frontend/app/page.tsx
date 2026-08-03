@@ -148,15 +148,33 @@ export default function Home() {
       </header>
 
       <main className="container" style={{ paddingTop: 40, paddingBottom: 80 }}>
-        {/* Hero */}
-        <div style={{ marginBottom: 48 }}>
-          <h1 style={{ fontSize: 36, fontWeight: 700, marginBottom: 12, letterSpacing: "-0.02em" }}>
-            On-chain Fact Verification
-          </h1>
-          <p style={{ color: "var(--text-dim)", fontSize: 15, maxWidth: 600 }}>
-            Verify factual claims against authoritative sources. TruthGuard fetches evidence on-chain,
-            cross-references with AI, and produces a consensus-backed verdict: Supported, Refuted, or Unverifiable.
-          </p>
+        {/* Hero with animated typewriter + orbital GIF */}
+        <div className="hero-section">
+          <div className="hero-bg">
+            <img src="/node-2.gif" alt="" />
+          </div>
+          <div className="hero-content">
+            <div className="glow-badge">GenLayer On-chain Oracle</div>
+            <h1 className="typewriter-title">On-chain Fact Verification</h1>
+            <p className="glow-subtitle">
+              Verify factual claims against authoritative sources. TruthGuard fetches evidence on-chain,
+              cross-references with AI, and produces a consensus-backed verdict: Supported, Refuted, or Unverifiable.
+            </p>
+            <div className="hero-stats">
+              <div>
+                <div className="hero-stat-value">{stats?.total_verifications ?? 0}</div>
+                <div className="hero-stat-label">Verifications</div>
+              </div>
+              <div>
+                <div className="hero-stat-value">{stats?.trusted_sources_count ?? 0}</div>
+                <div className="hero-stat-label">Trusted Sources</div>
+              </div>
+              <div>
+                <div className="hero-stat-value">98</div>
+                <div className="hero-stat-label">Accuracy Score</div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Stats */}
