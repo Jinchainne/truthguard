@@ -138,7 +138,7 @@ export default function Home() {
             <div className="stat-label">Trusted Sources</div>
           </div>
           <div className="stat-box">
-            <div className="stat-value">{CONTRACT === "0x0000000000000000000000000000000000000000" ? "—" : short(CONTRACT)}</div>
+            <div className="stat-value">{short(CONTRACT)}</div>
             <div className="stat-label">Contract</div>
           </div>
         </div>
