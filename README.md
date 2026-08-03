@@ -3,9 +3,9 @@
 On-chain fact verification oracle for GenLayer. Verify factual claims against authoritative sources using AI consensus and on-chain evidence fetching.
 
 **Live:** https://genlayer-truthguard.vercel.app/  
-**Contract:** `0x83387908Ab9f92e98b3ab7E25b576CaDcC099CEe` (StudioNet 61999)  
-**Explorer:** https://explorer-studio.genlayer.com/address/0x83387908Ab9f92e98b3ab7E25b576CaDcC099CEe  
-**Deploy TX:** https://explorer-studio.genlayer.com/tx/0x8ba34da0ae14d86e5b1607313723baeeb8e6b04b8a79c11f5ebf64780e276234
+**Contract:** `0x5AFEBbD492EdA4d83eCdB882EC1E3574b8DA1F12` (StudioNet 61999)  
+**Explorer:** https://explorer-studio.genlayer.com/address/0x5AFEBbD492EdA4d83eCdB882EC1E3574b8DA1F12  
+**Deploy TX:** https://explorer-studio.genlayer.com/tx/0x4c6f24bf607ee019b1b1f35bab4dd348be3e442981f78410fb723dffc3b88e90
 
 ## How It Works
 

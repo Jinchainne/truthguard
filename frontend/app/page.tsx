@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { createClient } from "genlayer-js";
+import { studionet } from "genlayer-js/chains";
 
-const CONTRACT = "0x83387908Ab9f92e98b3ab7E25b576CaDcC099CEe";
+const CONTRACT = "0x5AFEBbD492EdA4d83eCdB882EC1E3574b8DA1F12" as `0x${string}`;
 const CHAIN_ID = 61999;
+const CHAIN_HEX = "0xf22f";
 const RPC_URL = "https://studio.genlayer.com/api";
 const EXPLORER = "https://explorer-studio.genlayer.com";
 
@@ -32,75 +35,104 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<Verification | null>(null);
-  const [history, setHistory] = useState<Verification[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [txHash, setTxHash] = useState("");
+  const [loadErr, setLoadErr] = useState("");
 
   // Wallet connect
   async function connect() {
     if (!window.ethereum) { alert("Install MetaMask or OKX Wallet"); return; }
-    const accs = await window.ethereum.request({ method: "eth_requestAccounts" });
-    setWallet(accs[0]);
-    const cid = parseInt(await window.ethereum.request({ method: "eth_chainId" }), 16);
-    if (cid !== CHAIN_ID) {
-      try {
-        await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0xf22f" }] });
-      } catch (e: any) {
-        if (e.code === 4902) {
-          await window.ethereum.request({
-            method: "wallet_addEthereumChain",
-            params: [{ chainId: "0xf22f", chainName: "GenLayer StudioNet", rpcUrls: [RPC_URL], nativeCurrency: { name: "GEN", symbol: "GEN", decimals: 18 }, blockExplorerUrls: [EXPLORER] }],
-          });
+    try {
+      const accs = await window.ethereum.request({ method: "eth_requestAccounts" });
+      setWallet(accs[0]);
+      const cid = parseInt(await window.ethereum.request({ method: "eth_chainId" }), 16);
+      if (cid !== CHAIN_ID) {
+        try {
+          await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: CHAIN_HEX }] });
+        } catch (e: any) {
+          if (e.code === 4902) {
+            await window.ethereum.request({
+              method: "wallet_addEthereumChain",
+              params: [{ chainId: CHAIN_HEX, chainName: "GenLayer Studio Network", rpcUrls: [RPC_URL], nativeCurrency: { name: "GEN", symbol: "GEN", decimals: 18 }, blockExplorerUrls: [EXPLORER] }],
+            });
+          }
         }
       }
-    }
-    setChainOk(true);
-  }
-
-  // Verify claim
-  async function handleVerify() {
-    if (!claim.trim() || !urls.trim()) return;
-    setBusy(true); setError(""); setResult(null); setTxHash("");
-    try {
-      const res = await fetch("/api/rpc", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jsonrpc: "2.0", id: Date.now(), method: "eth_sendTransaction",
-          params: [{ from: wallet, to: CONTRACT, data: encodeVerifyClaim(claim, urls, context) }],
-        }),
-      });
-      const json = await res.json();
-      if (json.error) throw new Error(json.error.message || JSON.stringify(json.error));
-      setTxHash(json.result);
-      // Wait and read result
-      setTimeout(() => loadHistory(), 8000);
+      setChainOk(true);
     } catch (e: any) {
       setError(e.message);
+    }
+  }
+
+  // Load stats
+  const loadStats = useCallback(async () => {
+    try {
+      const client = createClient({ chain: studionet, endpoint: RPC_URL });
+      const raw = await Promise.race([
+        client.readContract({ address: CONTRACT, functionName: "get_stats", args: [] }),
+        new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 12000)),
+      ]);
+      const s = typeof raw === "string" ? JSON.parse(raw) : raw;
+      if (s && typeof s === "object") setStats(s as Stats);
+    } catch (e: any) {
+      setLoadErr(e.message?.slice(0, 100) || "Failed to load");
+    }
+  }, []);
+
+  useEffect(() => { loadStats(); }, [loadStats]);
+
+  // Verify claim — uses genlayer-js writeContract through wallet provider
+  async function handleVerify() {
+    if (!claim.trim() || !urls.trim()) return;
+    if (!wallet) { setError("Connect wallet first"); return; }
+    setBusy(true); setError(""); setResult(null); setTxHash("");
+
+    try {
+      const client = createClient({
+        chain: studionet,
+        endpoint: RPC_URL,
+        account: wallet as `0x${string}`,
+        provider: window.ethereum as any,
+      });
+
+      const hash = await client.writeContract({
+        address: CONTRACT,
+        functionName: "verify_claim",
+        args: [claim.trim(), urls.trim(), context.trim()],
+        value: BigInt(0),
+      });
+
+      setTxHash(String(hash));
+
+      // Wait for receipt
+      await Promise.race([
+        client.waitForTransactionReceipt({ hash: hash as any, status: "ACCEPTED" as any, retries: 60, interval: 3000 }),
+        new Promise((_, rej) => setTimeout(() => rej(new Error("TX timeout")), 120000)),
+      ]);
+
+      // Read result after delay
+      await new Promise(r => setTimeout(r, 5000));
+      const lastId = (stats?.total_verifications ?? 0) + 1;
+      try {
+        const raw = await client.readContract({ address: CONTRACT, functionName: "get_verification", args: [String(lastId)] });
+        const v = typeof raw === "string" ? JSON.parse(raw) : raw;
+        if (v && typeof v === "object") setResult(v as Verification);
+      } catch {}
+
+      loadStats();
+    } catch (e: any) {
+      const msg = e.message || "";
+      if (msg.includes("user rejected") || msg.includes("user denied")) {
+        setError("You cancelled the transaction.");
+      } else if (msg.includes("rate limit")) {
+        setError("Rate limited by StudioNet. Wait a moment and retry.");
+      } else {
+        setError(msg.slice(0, 200));
+      }
     } finally {
       setBusy(false);
     }
   }
-
-  function encodeVerifyClaim(c: string, u: string, ctx: string): string {
-    // Simplified — in production use viem encodeFunctionData
-    return "0x" + Buffer.from(JSON.stringify({ claim: c, urls: u, context: ctx })).toString("hex");
-  }
-
-  async function loadHistory() {
-    // Load from contract — simplified for now
-    try {
-      const res = await fetch("/api/rpc", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "gen_call", params: [{ type: "read", to: CONTRACT }] }),
-      });
-      const json = await res.json();
-      // Parse verifications from response
-    } catch {}
-  }
-
-  useEffect(() => { loadHistory(); }, []);
 
   return (
     <>
@@ -142,6 +174,7 @@ export default function Home() {
             <div className="stat-label">Contract</div>
           </div>
         </div>
+        {loadErr && <div className="alert alert-error" style={{ marginBottom: 16 }}>Stats: {loadErr}</div>}
 
         {/* Verify Form */}
         <div className="card">
@@ -175,13 +208,13 @@ export default function Home() {
                 disabled={busy}
               />
             </div>
-            <button className="btn btn-primary" onClick={handleVerify} disabled={busy || !claim.trim() || !urls.trim()}>
-              {busy ? <><span className="spinner" /> Verifying…</> : "Verify Claim"}
+            <button className="btn btn-primary" onClick={handleVerify} disabled={busy || !claim.trim() || !urls.trim() || !wallet}>
+              {busy ? <><span className="spinner" /> Verifying…</> : !wallet ? "Connect Wallet First" : "Verify Claim"}
             </button>
             {error && <div className="alert alert-error">{error}</div>}
             {txHash && (
               <div className="alert alert-info">
-                TX submitted: <a href={`${EXPLORER}/tx/${txHash}`} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>{short(txHash)}</a>
+                TX: <a href={`${EXPLORER}/tx/${txHash}`} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>{short(txHash)}</a>
               </div>
             )}
           </div>
@@ -214,7 +247,7 @@ export default function Home() {
                 <label>Sources checked</label>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {result.sources_checked.map((s, i) => (
-                    <span key={i} className="badge" style={{ color: "var(--accent)", borderColor: "var(--accent)" }}>{short(s)}</span>
+                    <a key={i} href={s} target="_blank" rel="noreferrer" className="badge" style={{ color: "var(--accent)", borderColor: "var(--accent)", textDecoration: "none" }}>{short(s)}</a>
                   ))}
                 </div>
               </div>
@@ -226,22 +259,17 @@ export default function Home() {
         <div className="card">
           <div className="card-title">How It Works</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-              <span style={{ width: 24, height: 24, borderRadius: "50%", background: "var(--accent)", color: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>1</span>
-              <div><p style={{ fontSize: 13, fontWeight: 600 }}>Submit claim + reference URLs</p><p style={{ fontSize: 12, color: "var(--text-dim)" }}>You provide a factual claim and URLs to check against.</p></div>
-            </div>
-            <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-              <span style={{ width: 24, height: 24, borderRadius: "50%", background: "var(--accent)", color: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>2</span>
-              <div><p style={{ fontSize: 13, fontWeight: 600 }}>On-chain evidence fetching</p><p style={{ fontSize: 12, color: "var(--text-dim)" }}>GenLayer validators fetch all URLs on-chain via gl.nondet.web.render(). Trusted sources are also fetched.</p></div>
-            </div>
-            <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-              <span style={{ width: 24, height: 24, borderRadius: "50%", background: "var(--accent)", color: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>3</span>
-              <div><p style={{ fontSize: 13, fontWeight: 600 }}>AI cross-references evidence</p><p style={{ fontSize: 12, color: "var(--text-dim)" }}>Leader and validator independently analyze the claim against fetched content. Must agree on verdict.</p></div>
-            </div>
-            <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-              <span style={{ width: 24, height: 24, borderRadius: "50%", background: "var(--accent)", color: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>4</span>
-              <div><p style={{ fontSize: 13, fontWeight: 600 }}>Consensus verdict stored on-chain</p><p style={{ fontSize: 12, color: "var(--text-dim)" }}>SUPPORTED, REFUTED, or UNVERIFIABLE — with confidence, score, and audit trail.</p></div>
-            </div>
+            {[
+              ["Submit claim + reference URLs", "You provide a factual claim and URLs to check against."],
+              ["On-chain evidence fetching", "GenLayer validators fetch all URLs on-chain via gl.nondet.web.render()."],
+              ["AI cross-references evidence", "Leader and validator independently analyze the claim against fetched content."],
+              ["Consensus verdict stored on-chain", "SUPPORTED, REFUTED, or UNVERIFIABLE — with confidence, score, and audit trail."],
+            ].map(([title, desc], i) => (
+              <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                <span style={{ width: 24, height: 24, borderRadius: "50%", background: "var(--accent)", color: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{i + 1}</span>
+                <div><p style={{ fontSize: 13, fontWeight: 600 }}>{title}</p><p style={{ fontSize: 12, color: "var(--text-dim)" }}>{desc}</p></div>
+              </div>
+            ))}
           </div>
         </div>
       </main>
