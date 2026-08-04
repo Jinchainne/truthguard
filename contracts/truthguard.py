@@ -283,3 +283,18 @@ Return JSON:
     @gl.public.view
     def get_version(self) -> str:
         return "truthguard/1.0.0"
+
+    @gl.public.view
+    def get_caller_last_verification(self, caller: str) -> str:
+        """Return the most recent verification ID for a given caller, or empty string."""
+        caller_clean = caller.strip()
+        if not caller_clean:
+            return ""
+        # Scan from newest to oldest
+        for vid in range(int(self.next_verification_id) - 1, 0, -1):
+            raw = self.verifications.get(str(vid))
+            if raw is not None:
+                record = json.loads(str(raw))
+                if record.get("caller") == caller_clean:
+                    return str(vid)
+        return ""

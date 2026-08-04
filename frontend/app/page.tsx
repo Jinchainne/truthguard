@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { createClient } from "genlayer-js";
 import { studionet } from "genlayer-js/chains";
 
-const CONTRACT = "0xE607Fb099B4d9Fc769e4C9aF101Eb0915Fd92EbC" as `0x${string}`;
+const CONTRACT = "0xB984eCFa3e3022Eb8CCDeB7ADA98A1ef79D92735" as `0x${string}`;
 const CHAIN_ID = 61999;
 const CHAIN_HEX = "0xf22f";
 const RPC_URL = "https://studio.genlayer.com/api";
@@ -110,13 +110,16 @@ export default function Home() {
         new Promise((_, rej) => setTimeout(() => rej(new Error("TX timeout")), 120000)),
       ]);
 
-      // Read result after delay
+      // Read result: use caller-specific lookup instead of guessing from global count
       await new Promise(r => setTimeout(r, 5000));
-      const lastId = (stats?.total_verifications ?? 0) + 1;
       try {
-        const raw = await client.readContract({ address: CONTRACT, functionName: "get_verification", args: [String(lastId)] });
-        const v = typeof raw === "string" ? JSON.parse(raw) : raw;
-        if (v && typeof v === "object") setResult(v as Verification);
+        const callerVid = await client.readContract({ address: CONTRACT, functionName: "get_caller_last_verification", args: [wallet] });
+        const vid = typeof callerVid === "string" ? callerVid : String(callerVid);
+        if (vid) {
+          const raw = await client.readContract({ address: CONTRACT, functionName: "get_verification", args: [vid] });
+          const v = typeof raw === "string" ? JSON.parse(raw) : raw;
+          if (v && typeof v === "object") setResult(v as Verification);
+        }
       } catch {}
 
       loadStats();
