@@ -3,8 +3,8 @@
 On-chain fact verification oracle for GenLayer. Verify factual claims against authoritative sources using AI consensus and on-chain evidence fetching.
 
 **Live:** https://genlayer-truthguard.vercel.app/  
-**Contract:** `0xE607Fb099B4d9Fc769e4C9aF101Eb0915Fd92EbC` (StudioNet 61999)  
-**Explorer:** https://explorer-studio.genlayer.com/address/0xE607Fb099B4d9Fc769e4C9aF101Eb0915Fd92EbC  
+**Contract:** `0xB984eCFa3e3022Eb8CCDeB7ADA98A1ef79D92735` (StudioNet 61999)  
+**Explorer:** https://explorer-studio.genlayer.com/address/0xB984eCFa3e3022Eb8CCDeB7ADA98A1ef79D92735  
 **Deploy TX:** https://explorer-studio.genlayer.com/tx/0x9ca63e0661b9ecbc3fb9901649cced21ad74c3be454c520a6cf4b3c796a7b781
 
 ## How It Works
@@ -51,6 +51,7 @@ The contract fetched the Wikipedia page on-chain, the AI compared the claim agai
 | `get_stats()` | Total verifications, trusted sources count |
 | `is_supported(id)` | Quick check if claim is supported |
 | `get_version()` | Contract version |
+| `get_caller_last_verification(caller)` | Get most recent verification ID for a caller |
 
 ## Contract Architecture
 
